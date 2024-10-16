@@ -1,6 +1,6 @@
-# 🖱️ Remote Cursor - webPa
+# 🖱️ Remote Cursor - webPad
 
-n**Remote Cursor - webPad** allows you to control your PC cursor remotely through a smartphone web interface. Powered by a Rust web server, WebSocket technology, and HTTP, this app brings your computer cursor to your phone’s browser with real-time responsiveness. It's easy to set up, and you can get started with just a single executable file! 🖥️📲
+**Remote Cursor - webPad** allows you to control your PC cursor remotely through a smartphone web interface. Powered by a Rust web server, WebSocket technology, and HTTP, this app brings your computer cursor to your phone’s browser with real-time responsiveness. It's easy to set up, and you can get started with just a single executable file! 🖥️📲
 ## 🌐 Overview
 With **webPad**, you can
 - 🖱️ Move your cursor remotely
