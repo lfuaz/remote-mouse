@@ -14,10 +14,10 @@ use mouse_position::mouse_position::Mouse as PositionMouse;
 use qrcode::QrCode;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::time::Duration;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::spawn;
-use tokio::time::sleep;
+use tokio::sync::Mutex;
 use tokio_tungstenite::accept_async;
 
 #[derive(Serialize, Deserialize)]
@@ -28,10 +28,7 @@ struct CursorMessage {
     button: Option<String>,
 }
 
-async fn handle_connection(stream: tokio::net::TcpStream) -> Result<()> {
-    let settings = Settings::default();
-    let mut enigo = Enigo::new(&settings).unwrap();
-
+async fn handle_connection(stream: tokio::net::TcpStream, enigo: Arc<Mutex<Enigo>>) -> Result<()> {
     let ws_stream = accept_async(stream).await?;
     let (_, mut read) = ws_stream.split();
 
@@ -42,12 +39,14 @@ async fn handle_connection(stream: tokio::net::TcpStream) -> Result<()> {
                     if let (Some(dx), Some(dy)) = (cursor_message.delta_x, cursor_message.delta_y) {
                         match PositionMouse::get_mouse_position() {
                             PositionMouse::Position { x, y } => {
-                                let _ = enigo.move_mouse(
+                                let mut enigo = enigo.lock().await;
+                                if let Err(e) = enigo.move_mouse(
                                     (x as f64 + dx) as i32,
                                     (y as f64 + dy) as i32,
                                     Coordinate::Abs,
-                                );
-                                sleep(Duration::from_millis(5)).await;
+                                ) {
+                                    error!("Failed to move mouse: {}", e);
+                                }
                             }
                             PositionMouse::Error => {
                                 error!("Error getting mouse position");
@@ -64,16 +63,22 @@ async fn handle_connection(stream: tokio::net::TcpStream) -> Result<()> {
                             _ => None,
                         };
                         if let Some(btn) = btn {
-                            let _ = enigo.button(btn, Press);
-                            sleep(Duration::from_millis(5)).await;
-                            let _ = enigo.button(btn, Release);
+                            let mut enigo = enigo.lock().await;
+                            if let Err(e) = enigo.button(btn, Press) {
+                                error!("Failed to press button: {}", e);
+                            }
+                            if let Err(e) = enigo.button(btn, Release) {
+                                error!("Failed to release button: {}", e);
+                            }
                         }
                     }
                 }
                 "scroll" => {
                     if let Some(dy) = cursor_message.delta_y {
-                        let _ = enigo.scroll(dy as i32, enigo::Axis::Vertical);
-                        sleep(Duration::from_millis(5)).await;
+                        let mut enigo = enigo.lock().await;
+                        if let Err(e) = enigo.scroll(dy as i32, enigo::Axis::Vertical) {
+                            error!("Failed to scroll: {}", e);
+                        }
                     }
                 }
                 _ => (),
@@ -132,6 +137,8 @@ async fn main() -> Result<()> {
     let qr_code_console = code.render::<qrcode::render::unicode::Dense1x2>().build();
     println!("{}", qr_code_console);
 
+    let enigo = Arc::new(Mutex::new(Enigo::new(&Settings::default()).unwrap()));
+
     let web_server =
         HttpServer::new(|| App::new().route("/{filename:.*}", web::get().to(serve_file)))
             .bind("0.0.0.0:8081")?
@@ -141,7 +148,8 @@ async fn main() -> Result<()> {
         loop {
             match tcp_listener.accept().await {
                 Ok((stream, _)) => {
-                    spawn(handle_connection(stream));
+                    let enigo = enigo.clone();
+                    spawn(handle_connection(stream, enigo));
                 }
                 Err(e) => {
                     error!("Failed to accept connection: {}", e);
