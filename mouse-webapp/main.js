@@ -51,6 +51,7 @@ document.addEventListener("DOMContentLoaded", function () {
   feedbackCircle.style.transform = "translate(-50%, -50%)";
   feedbackCircle.style.pointerEvents = "none";
   feedbackCircle.style.display = "none";
+  feedbackCircle.style.zIndex = "1000"; // Ensure it's on top
   document.body.appendChild(feedbackCircle);
 
   // Initialize Hammer.js
@@ -135,22 +136,34 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function sendMovement(delta_x, delta_y) {
     if (isSocketOpen) {
-      const movementData = { msg_type: "move", delta_x, delta_y };
-      socket.send(JSON.stringify(movementData));
+      try {
+        const movementData = { msg_type: "move", delta_x, delta_y };
+        socket.send(JSON.stringify(movementData));
+      } catch (error) {
+        console.error("Failed to send movement data:", error);
+      }
     }
   }
 
   function sendClick(button) {
     if (isSocketOpen) {
-      const clickData = { msg_type: "click", button };
-      socket.send(JSON.stringify(clickData));
+      try {
+        const clickData = { msg_type: "click", button };
+        socket.send(JSON.stringify(clickData));
+      } catch (error) {
+        console.error("Failed to send click data:", error);
+      }
     }
   }
 
   function sendScroll(delta_y) {
     if (isSocketOpen) {
-      const scrollData = { msg_type: "scroll", delta_y };
-      socket.send(JSON.stringify(scrollData));
+      try {
+        const scrollData = { msg_type: "scroll", delta_y };
+        socket.send(JSON.stringify(scrollData));
+      } catch (error) {
+        console.error("Failed to send scroll data:", error);
+      }
     }
   }
 

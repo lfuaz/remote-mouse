@@ -1,12 +1,18 @@
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use enigo::{Button as MouseButton, Enigo, Mouse as EnigoMouse, Settings};
+use anyhow::Result;
+use enigo::{
+    Button, Coordinate,
+    Direction::{Press, Release},
+    Enigo, Mouse, Settings,
+};
 use futures_util::StreamExt;
 use include_dir::{include_dir, Dir};
 use local_ip_address::local_ip;
+use log::{error, info};
 use mime_guess::from_path;
 use mouse_position::mouse_position::Mouse as PositionMouse;
+use qrcode::QrCode;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -22,11 +28,9 @@ struct CursorMessage {
     button: Option<String>,
 }
 
-async fn handle_connection(
-    stream: tokio::net::TcpStream,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn handle_connection(stream: tokio::net::TcpStream) -> Result<()> {
     let settings = Settings::default();
-    let mut enigo = Enigo::new(&settings)?;
+    let mut enigo = Enigo::new(&settings).unwrap();
 
     let ws_stream = accept_async(stream).await?;
     let (_, mut read) = ws_stream.split();
@@ -38,15 +42,15 @@ async fn handle_connection(
                     if let (Some(dx), Some(dy)) = (cursor_message.delta_x, cursor_message.delta_y) {
                         match PositionMouse::get_mouse_position() {
                             PositionMouse::Position { x, y } => {
-                                enigo.move_mouse(
+                                let _ = enigo.move_mouse(
                                     (x as f64 + dx) as i32,
                                     (y as f64 + dy) as i32,
-                                    enigo::Coordinate::Abs,
-                                )?;
-                                sleep(Duration::from_millis(10)).await; // Introduce a small delay
+                                    Coordinate::Abs,
+                                );
+                                sleep(Duration::from_millis(5)).await;
                             }
                             PositionMouse::Error => {
-                                eprintln!("Error getting mouse position");
+                                error!("Error getting mouse position");
                             }
                         }
                     }
@@ -54,21 +58,22 @@ async fn handle_connection(
                 "click" => {
                     if let Some(button) = cursor_message.button.as_deref() {
                         let btn = match button {
-                            "left" => Some(MouseButton::Left),
-                            "right" => Some(MouseButton::Right),
-                            "middle" => Some(MouseButton::Middle),
+                            "left" => Some(Button::Left),
+                            "right" => Some(Button::Right),
+                            "middle" => Some(Button::Middle),
                             _ => None,
                         };
                         if let Some(btn) = btn {
-                            enigo.button(btn, enigo::Direction::Click)?;
-                            sleep(Duration::from_millis(10)).await; // Introduce a small delay
+                            let _ = enigo.button(btn, Press);
+                            sleep(Duration::from_millis(5)).await;
+                            let _ = enigo.button(btn, Release);
                         }
                     }
                 }
                 "scroll" => {
                     if let Some(dy) = cursor_message.delta_y {
-                        enigo.scroll(dy as i32, enigo::Axis::Vertical)?;
-                        sleep(Duration::from_millis(10)).await; // Introduce a small delay
+                        let _ = enigo.scroll(dy as i32, enigo::Axis::Vertical);
+                        sleep(Duration::from_millis(5)).await;
                     }
                 }
                 _ => (),
@@ -81,7 +86,7 @@ async fn handle_connection(
 static DIST_DIR: Dir = include_dir!("./dist");
 
 async fn serve_file(path: web::Path<String>, _req: HttpRequest) -> impl Responder {
-    let file_path = path.into_inner(); // Removed leading slash
+    let file_path = path.into_inner();
     println!("Requested file path: {}", file_path);
 
     if let Some(file) = DIST_DIR.get_file(&file_path) {
@@ -91,16 +96,17 @@ async fn serve_file(path: web::Path<String>, _req: HttpRequest) -> impl Responde
             .content_type(mime_type.as_ref())
             .body(file.contents().to_vec())
     } else {
-        // Check if the path has an extension
         if Path::new(&file_path).extension().is_none() {
-            // No extension, serve index.html for SPA routing
-            let index_file = DIST_DIR.get_file("index.html").unwrap();
-            let mime_type = from_path(index_file.path()).first_or_octet_stream();
-            HttpResponse::Ok()
-                .content_type(mime_type.as_ref())
-                .body(index_file.contents())
+            if let Some(index_file) = DIST_DIR.get_file("index.html") {
+                let mime_type = from_path(index_file.path()).first_or_octet_stream();
+                HttpResponse::Ok()
+                    .content_type(mime_type.as_ref())
+                    .body(index_file.contents())
+            } else {
+                println!("index.html not found in DIST_DIR");
+                HttpResponse::NotFound().finish()
+            }
         } else {
-            // Static asset not found, return 404 Not Found
             println!("Static asset not found: {}", file_path);
             HttpResponse::NotFound().finish()
         }
@@ -108,12 +114,23 @@ async fn serve_file(path: web::Path<String>, _req: HttpRequest) -> impl Responde
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn main() -> Result<()> {
+    // Initialize the logger with the info level
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Info)
+        .init();
+
     let tcp_listener = TcpListener::bind("0.0.0.0:8080").await?;
 
-    // Get the local IP address
-    let local_ip = local_ip().unwrap();
-    println!("Go to website: http://{}:8081", local_ip);
+    let local_ip = local_ip()?;
+    let url = format!("http://{}:8081", local_ip);
+    info!("Go to website: {}", url);
+
+    let code = QrCode::new(&url)?;
+
+    // Render QR code to console
+    let qr_code_console = code.render::<qrcode::render::unicode::Dense1x2>().build();
+    println!("{}", qr_code_console);
 
     let web_server =
         HttpServer::new(|| App::new().route("/{filename:.*}", web::get().to(serve_file)))
@@ -121,11 +138,28 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             .run();
 
     spawn(async move {
-        while let Ok((stream, _)) = tcp_listener.accept().await {
-            spawn(handle_connection(stream));
+        loop {
+            match tcp_listener.accept().await {
+                Ok((stream, _)) => {
+                    spawn(handle_connection(stream));
+                }
+                Err(e) => {
+                    error!("Failed to accept connection: {}", e);
+                }
+            }
         }
     });
 
-    web_server.await?;
+    tokio::select! {
+        res = web_server => {
+            if let Err(e) = res {
+                error!("Web server error: {}", e);
+            }
+        },
+        _ = tokio::signal::ctrl_c() => {
+            info!("Shutdown signal received");
+        },
+    }
+
     Ok(())
 }
