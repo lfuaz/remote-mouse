@@ -5,9 +5,8 @@ document.addEventListener("DOMContentLoaded", function () {
   let socket;
   let isSocketOpen = false;
 
-  function connectWebSocket() {
-    const serverIp = import.meta.env.VITE_WEBSOCKET_SERVER_IP;
-    socket = new WebSocket(`ws://${serverIp}:8080`);
+  const connectWebSocket = () => {
+    socket = new WebSocket(`ws://${location.hostname}:8080`);
 
     socket.addEventListener("open", function () {
       console.log("WebSocket connection established.");
@@ -24,7 +23,7 @@ document.addEventListener("DOMContentLoaded", function () {
       isSocketOpen = false;
       setTimeout(connectWebSocket, 1000); // Try to reconnect every second
     });
-  }
+  };
 
   connectWebSocket();
 

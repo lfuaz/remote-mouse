@@ -87,23 +87,9 @@ async fn serve_file(path: web::Path<String>, _req: HttpRequest) -> impl Responde
     if let Some(file) = DIST_DIR.get_file(&file_path) {
         println!("Found file in DIST_DIR: {:?}", file.path());
         let mime_type = from_path(file.path()).first_or_octet_stream();
-        let mut contents = file.contents().to_vec();
-
-        // Replace the placeholder with the actual local IP address
-        if mime_type == mime::TEXT_JAVASCRIPT {
-            let local_ip = local_ip().unwrap().to_string();
-            let placeholder = b"eTTQg6n7xNPPNqGYz9yg9JYErGnTMtq9drQFzxM5";
-            if let Some(pos) = contents
-                .windows(placeholder.len())
-                .position(|window| window == placeholder)
-            {
-                contents.splice(pos..pos + placeholder.len(), local_ip.bytes());
-            }
-        }
-
         HttpResponse::Ok()
             .content_type(mime_type.as_ref())
-            .body(contents)
+            .body(file.contents().to_vec())
     } else {
         // Check if the path has an extension
         if Path::new(&file_path).extension().is_none() {
