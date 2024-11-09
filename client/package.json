@@ -1,7 +1,7 @@
 {
-  "name": "mouse-remote-app",
+  "name": "webpad-client",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host=0.0.0.0",
@@ -12,6 +12,6 @@
     "vite": "^5.4.10"
   },
   "dependencies": {
-    "hammerjs": "^2.0.8"
+    "@use-gesture/vanilla": "^10.3.1"
   }
 }
