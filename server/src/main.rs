@@ -9,18 +9,24 @@ use qrcode::QrCode;
 use std::sync::Arc;
 use websocket_server::start_websocket_server;
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+fn print_qr_code(text: &str) {
+    let code = QrCode::new(text).unwrap();
+    let string = code
+        .render::<char>()
+        .quiet_zone(false)
+        .module_dimensions(2, 1) // Further adjusted dimensions to make the QR code smaller
+        .build();
+    println!("\n{}\n", string);
+}
+fn main() {
     let controller = Arc::new(MouseController::new());
     start_websocket_server(Arc::clone(&controller));
 
     let local_ip = local_ip().unwrap();
     let url = format!("http://{}:8081", local_ip);
-    println!("Go to website: {}", url);
+    println!("Scan QR code or go to: {}", url);
+    print_qr_code(&url);
 
-    let code = QrCode::new(&url).unwrap();
-    let qr_code_console = code.render::<qrcode::render::unicode::Dense1x2>().build();
-    println!("{}", qr_code_console);
-
-    start_http_server().await
+    // Run HTTP server on main thread
+    start_http_server();
 }
