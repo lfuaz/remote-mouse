@@ -1,4 +1,4 @@
-import { DragGesture, ScrollGesture } from "@use-gesture/vanilla";
+import { DragGesture } from "@use-gesture/vanilla";
 
 // Connection to the WebSocket server
 const socket = new WebSocket(`ws://${location.hostname}:9001`); // Replace with your actual server address
@@ -35,14 +35,6 @@ function createMoveBuffer(dx, dy) {
   const view = new DataView(buffer);
   view.setInt32(0, dx, true); // true for little-endian
   view.setInt32(4, dy, true);
-  return buffer;
-}
-
-// Function to create a buffer for Scroll messages
-function createScrollBuffer(dy) {
-  const buffer = new ArrayBuffer(4); // 4 bytes for dy
-  const view = new DataView(buffer);
-  view.setInt32(0, dy, true); // true for little-endian
   return buffer;
 }
 
@@ -83,18 +75,6 @@ const throttledSendMove = (dx, dy) => {
   }
 };
 
-// Debounced scroll handler
-let scrollTimeout = null;
-const handleScroll = (dy) => {
-  if (scrollTimeout) {
-    clearTimeout(scrollTimeout);
-  }
-  scrollTimeout = setTimeout(() => {
-    const scrollBuffer = createScrollBuffer(dy);
-    sendBinaryMessage(0x02, scrollBuffer); // 0x02 = Scroll
-  }, 50); // Adjust debounce delay as needed
-};
-
 let lastDx = null;
 let lastDy = null;
 
@@ -119,26 +99,26 @@ new DragGesture(
   }
 );
 
-// Scroll Gesture for scrolling
-new ScrollGesture(gestureArea, ({ delta: [, dy] }) => {
-  handleScroll(dy);
-});
-
-// Click Event Handlers
-gestureArea.addEventListener("click", () => {
-  const clickBuffer = createClickBuffer(0x01); // 0x01 = Left Button
-  sendBinaryMessage(0x03, clickBuffer); // 0x03 = Click
-});
-
-gestureArea.addEventListener("contextmenu", (e) => {
+// Click Event Handlers with proper button mapping
+const handleMouseEvent = (e) => {
   e.preventDefault();
-  const clickBuffer = createClickBuffer(0x02); // 0x02 = Right Button
-  sendBinaryMessage(0x03, clickBuffer); // 0x03 = Click
-});
-
-gestureArea.addEventListener("auxclick", (e) => {
-  if (e.button === 1) {
-    const clickBuffer = createClickBuffer(0x03); // 0x03 = Middle Button
-    sendBinaryMessage(0x03, clickBuffer); // 0x03 = Click
+  // Map browser button values to our protocol values
+  const buttonMap = {
+    0: 1,  // Left click (browser) -> 1 (our protocol)
+    2: 2   // Right click (browser) -> 2 (our protocol)
+  };
+  
+  const button = buttonMap[e.button];
+  if (button !== undefined) {
+    const clickBuffer = createClickBuffer(button);
+    sendBinaryMessage(0x03, clickBuffer);
   }
-});
+};
+
+// Single event listeners for all mouse events
+gestureArea.addEventListener("click", handleMouseEvent);
+gestureArea.addEventListener("contextmenu", handleMouseEvent);
+
+// Prevent default browser behavior
+gestureArea.addEventListener("mousedown", (e) => e.preventDefault());
+gestureArea.addEventListener("dragstart", (e) => e.preventDefault());

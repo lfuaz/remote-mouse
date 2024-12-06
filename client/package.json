@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite --host=0.0.0.0",
     "build": "vite build",
+    "b": "rm -rf ../server/dist && npm run build && mv dist ../server",
     "preview": "vite preview --host=0.0.0.0"
   },
   "devDependencies": {
-    "vite": "^5.4.10"
+    "vite": "^6.0.3"
   },
   "dependencies": {
     "@use-gesture/vanilla": "^10.3.1"
