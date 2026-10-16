@@ -1,7 +1,10 @@
 import { DragGesture } from "@use-gesture/vanilla";
 
 // Connection to the WebSocket server
-const socket = new WebSocket(`ws://${location.hostname}:9001`); // Replace with your actual server address
+const params = new URLSearchParams(location.search);
+const socket = new WebSocket(
+  `ws://${location.hostname}:${params.get("ws") ?? 9001}/?key=${encodeURIComponent(params.get("key") ?? "")}`
+);
 
 socket.binaryType = "arraybuffer"; // Ensure the socket is set to handle binary data if needed
 

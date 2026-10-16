@@ -1,34 +1,28 @@
 use enigo::{Button, Coordinate, Direction, Enigo, Mouse, Settings};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-pub struct MouseController {
-    enigo: Arc<Mutex<Enigo>>,
-}
+pub struct MouseController(Mutex<Enigo>);
 
 impl MouseController {
     pub fn new() -> Self {
-        let settings = Settings::default();
-        let enigo = Enigo::new(&settings).expect("Failed to create Enigo instance");
-        Self {
-            enigo: Arc::new(Mutex::new(enigo)),
-        }
+        Self(Mutex::new(
+            Enigo::new(&Settings::default()).expect("Failed to create Enigo instance"),
+        ))
     }
 
     pub fn click(&self, button: Button) -> Result<(), String> {
-        self.enigo
+        self.0
             .lock()
             .map_err(|e| e.to_string())?
             .button(button, Direction::Click)
             .map_err(|e| e.to_string())
     }
 
-    pub fn mouse_move_batch(&self, moves: Vec<(i32, i32)>) -> Result<(), String> {
-        let mut enigo = self.enigo.lock().map_err(|e| e.to_string())?;
-        for (dx, dy) in moves {
-            enigo
-                .move_mouse(dx, dy, Coordinate::Rel)
-                .map_err(|e| e.to_string())?;
-        }
-        Ok(())
+    pub fn mouse_move(&self, dx: i32, dy: i32) -> Result<(), String> {
+        self.0
+            .lock()
+            .map_err(|e| e.to_string())?
+            .move_mouse(dx, dy, Coordinate::Rel)
+            .map_err(|e| e.to_string())
     }
 }
