@@ -1,5 +1,4 @@
 use include_dir::{include_dir, Dir};
-use mime_guess::from_path;
 use std::net::TcpListener;
 use tiny_http::{Header, Response, Server};
 
@@ -16,9 +15,16 @@ pub fn start_http_server(listener: TcpListener) {
         };
         let response = match file {
             Some(f) => {
-                let mime = from_path(path).first_or_octet_stream();
+                // dist/ only holds what vite emits; extend when it emits new kinds.
+                let mime = match path.rsplit('.').next() {
+                    Some("html") => "text/html",
+                    Some("js") => "text/javascript",
+                    Some("css") => "text/css",
+                    Some("svg") => "image/svg+xml",
+                    _ => "application/octet-stream",
+                };
                 Response::from_data(f.contents()).with_header(
-                    Header::from_bytes(&b"Content-Type"[..], mime.as_ref().as_bytes()).unwrap(),
+                    Header::from_bytes(&b"Content-Type"[..], mime.as_bytes()).unwrap(),
                 )
             }
             None => Response::from_string("404 Not Found").with_status_code(404),

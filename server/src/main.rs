@@ -3,12 +3,11 @@ mod mouse_controller;
 mod websocket_server;
 
 use http_server::start_http_server;
-use local_ip_address::local_ip;
 use mouse_controller::MouseController;
 use qrcode::QrCode;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
-use std::net::TcpListener;
+use std::net::{IpAddr, TcpListener, UdpSocket};
 use std::sync::Arc;
 use websocket_server::start_websocket_server;
 
@@ -22,6 +21,13 @@ fn bind_from(port: u16) -> TcpListener {
 /// Random per-run key; RandomState is seeded from the OS RNG.
 fn random_key() -> String {
     format!("{:016x}", RandomState::new().build_hasher().finish())
+}
+
+/// LAN address of the default route; connecting a UDP socket sends no packet.
+fn local_ip() -> Option<IpAddr> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    Some(socket.local_addr().ok()?.ip())
 }
 
 fn print_qr_code(text: &str) {
@@ -47,7 +53,7 @@ fn main() {
     // The client reads the WebSocket port and access key from the query string.
     let url = format!(
         "http://{}:{}/?ws={}&key={}",
-        local_ip().unwrap(),
+        local_ip().expect("No network interface with a route found"),
         http_port,
         ws_port,
         key
